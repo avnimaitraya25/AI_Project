@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Home AI Chatbot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0c29;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas#particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+    }
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    .chat-box {
+      flex: 2;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .message {
+      margin-bottom: 12px;
+      padding: 10px 15px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      max-width: 70%;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    .user {
+      align-self: flex-end;
+      background-color: #3a86ff;
+    }
+    .bot {
+      align-self: flex-start;
+      background-color: #8338ec;
+    }
+    .input-container {
+      padding: 20px;
+      display: flex;
+      background-color: #111;
+    }
+    .input-container input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 20px;
+      border: none;
+      outline: none;
+    }
+    .input-container button {
+      margin-left: 10px;
+      border: none;
+      background: #ff006e;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    .devices-panel {
+      flex: 1;
+      background-color: #111;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .device {
+      margin-bottom: 10px;
+      background-color: #222;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .device i {
+      margin-right: 10px;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="particles"></canvas>
+
+  <div class="chat-container">
+    <div class="chat-box" id="chat-box"></div>
+    <div class="devices-panel" id="devices">
+      <h3>Device Status</h3>
+    </div>
+  </div>
+  <div class="input-container">
+    <input type="text" id="user-input" placeholder="Ask me to control your home...">
+    <button onclick="sendMessage()">Send</button>
+    <button onclick="startVoiceInput()"><i class="fas fa-microphone"></i></button>
+  </div>
+
+  <script>
+    async function sendMessage(messageText = null) {
+      const input = document.getElementById('user-input');
+      const message = messageText || input.value;
+      if (!message) return;
+
+      const chatBox = document.getElementById('chat-box');
+      chatBox.innerHTML += `<div class='message user'>${message}</div>`;
+      input.value = '';
+
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message })
+      });
+      const data = await res.json();
+
+      chatBox.innerHTML += `<div class='message bot'>${data.response}</div>`;
+      chatBox.scrollTop = chatBox.scrollHeight;
+      updateDevices(data.devices);
+
+      const utterance = new SpeechSynthesisUtterance(data.response);
+      speechSynthesis.speak(utterance);
+    }
+
+    function updateDevices(devices) {
+      const panel = document.getElementById('devices');
+      panel.innerHTML = '<h3>Device Status</h3>';
+      const icons = {
+        lights: 'fa-lightbulb', fan: 'fa-fan', ac: 'fa-snowflake', tv: 'fa-tv',
+        speakers: 'fa-volume-up', door_lock: 'fa-lock', camera: 'fa-video',
+        doorbell: 'fa-bell', fire_alarm: 'fa-fire-extinguisher', smoke_detector: 'fa-smog',
+        vacuum_cleaner: 'fa-robot', washing_machine: 'fa-water', microwave: 'fa-mug-hot',
+        fridge: 'fa-ice-cream', coffee_maker: 'fa-coffee', window_curtains: 'fa-window-maximize',
+        air_purifier: 'fa-wind', humidifier: 'fa-tint', alarm_clock: 'fa-clock', temperature: 'fa-thermometer-half'
+      };
+      for (const [device, state] of Object.entries(devices)) {
+        const icon = icons[device] || 'fa-circle';
+        panel.innerHTML += `<div class='device'><i class="fas ${icon}"></i> <b>${device.replace('_', ' ')}</b>: ${state}</div>`;
+      }
+    }
+
+    function startVoiceInput() {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = event => {
+        const transcript = event.results[0][0].transcript;
+        sendMessage(transcript);
+      };
+      recognition.start();
+    }
+  </script>
+
+  <script>
+    // Particles background
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const particles = [];
+    for (let i = 0; i < 100; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        radius: Math.random() * 2,
+        dx: (Math.random() - 0.5) * 1,
+        dy: (Math.random() - 0.5) * 1
+      });
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const p of particles) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fill();
+
+        p.x += p.dx;
+        p.y += p.dy;
+
+        if (p.x < 0 || p.x > canvas.width) p.dx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.dy *= -1;
+      }
+      requestAnimationFrame(animate);
+    }
+    animate();
+  </script>
+</body>
+</html>
